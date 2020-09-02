@@ -3,6 +3,24 @@ from requests_html import HTMLSession # to remove
 from datetime import timedelta
 import pandas as pd
 import numpy as np
+import re
+
+"""
+UTILITY
+"""
+# parse finish time string
+def parse_finish_times(time_str:str) -> timedelta:
+    spl=time_str.split(":")
+    spl=[int(val) for val in spl]
+
+    if (time_str.count(":")==2): # hours:mins:secs
+        return timedelta(hours=spl[0],minutes=spl[1],seconds=spl[2])
+
+    elif (time_str.count(":")==1): # mins:secs
+        return timedelta(minutes=spl[0],seconds=spl[1])
+
+    else: return np.NaN
+
 
 """
 STAGE RACING OVERVIEW
@@ -27,7 +45,7 @@ def scrape_stage_race_overview_top_competitors(url:str) -> pd.DataFrame:
     # fill data frame
     for list_item in top_competitor_list_items:
         series={}
-        
+
         series["rider_name"]=list_item.text
         series["rider_url"]="www.procyclingstats.com/"+list_item.find("a")["href"]
         series["rider_nationality_code"]=list_item.find("span",{"class":"flag"})["class"][-1]
@@ -121,6 +139,7 @@ STAGE RACING STAGES
 """
 
 # scrape finish results from stage of a stage race
+# "https://www.procyclingstats.com/race/tour-de-france/2020/stage-5"
 def scrape_stage_race_stage_results(url) -> pd.DataFrame:
     # start session
     session=HTMLSession()
@@ -175,19 +194,6 @@ def parse_stage_race_stage_results_row(row) -> pd.Series:
 
     return pd.Series(series)
 
-# parse finish time string
-def parse_finish_times(time_str:str) -> timedelta:
-    spl=time_str.split(":")
-    spl=[int(val) for val in spl]
-
-    if (time_str.count(":")==2): # hours:mins:secs
-        return timedelta(hours=spl[0],minutes=spl[1],seconds=spl[2])
-
-    elif (time_str.count(":")==1): # mins:secs
-        return timedelta(minutes=spl[0],seconds=spl[1])
-
-    else: return np.NaN
-
 """
 ONE DAY RACING
 """
@@ -195,6 +201,89 @@ ONE DAY RACING
 """
 RIDER PROFILES
 """
+# returns list containing years in which results are held for a rider
+def get_rider_years(url) -> [int]:
+    # start session
+    session=HTMLSession()
+    response=session.get(url)
+    response.html.render()
+    soup=BeautifulSoup(response.html.html,"lxml")
+
+    # isolate desired table
+    table=soup.find("ul",{"class":"rdrSeasonNav"})
+    table_items=table.find_all("li")
+
+    # extract year values
+    years=[]
+    for item in table_items[:-1]:
+        if ("more" in item.text): break
+        years.append(int(item.text))
+
+    return years
+
+# scrape results from riders overview page (for a specific year)
+# e.g. https://www.procyclingstats.com/rider/caleb-ewan/2020
+def scrape_rider_year_results(url) -> pd.DataFrame:
+    # start session
+    session=HTMLSession()
+    response=session.get(url)
+    response.html.render()
+    soup=BeautifulSoup(response.html.html,"lxml")
+
+    # isolate desired table
+    table=soup.find("table",{"class":"rdrResults"})
+    results_table=table.find("tbody")
+    rows=results_table.find_all("tr")
+
+    # prepare data frame
+    df=pd.DataFrame(columns=["date","type","result","gc_pos","race_country_code","race_name","race_class","stage_name","distance","pcs_points","uci_points","url"])
+
+    # fill data frame
+    current={"race":"","race_class":"","flag":""}
+    for row in rows:
+        add,series=parse_rider_year_results_row(row,current)
+        current={"race":series["race_name"],"race_class":series["race_class"],"flag":series["race_country_code"]}
+        if add: df=df.append(series,ignore_index=True)
+
+    return df
+
+# parse row of rider details to a series
+# return boolean stating whether to add details to dataframe (ie not just details of a stage race)
+def parse_rider_year_results_row(row,current={"race":"","race_class":"","flag":""}) -> (bool,pd.Series):
+    series={}
+    row_details=row.find_all("td")
+
+    # extract data
+    date=row_details[0].text
+    result=row_details[1].text
+    gc_pos=row_details[2].text
+    name=row_details[4].text
+    url="www.procyclingstats.com/"+row_details[4].find("a")["href"]
+    distance=row_details[5].text
+    pcs_points=row_details[6].text
+    uci_points=row_details[7].text
+
+    # prepare series depending on race type
+    if (row["data-main"]=="0"): # stage or final classification of a stage race
+        if (date==""): # FINAL CLASSIFICATION missing date
+            series={"date":date,"type":name,"result":result,"gc_pos":np.NaN,"race_country_code":current["flag"],"race_name":current["race"],"race_class":current["race_class"],"stage_name":np.NaN,"distance":np.NaN,"pcs_points":pcs_points,"uci_points":uci_points,"url":url}
+        else: # STAGE
+            series={"date":date,"type":"Stage","result":result,"gc_pos":gc_pos,"race_country_code":current["flag"],"race_name":current["race"],"race_class":current["race_class"],"stage_name":name,"distance":distance,"pcs_points":pcs_points,"uci_points":uci_points,"url":url}
+
+    elif (row["data-main"]=="1"): # stage race or one day
+        # update details for stage results
+        race_class=re.search("\((.*)\)",name,re.IGNORECASE).group(1) # uci rating of race
+        race=name.split(" (")[0]
+        flag=row_details[4].find("span",{"class":"flag"})["class"][-1]
+
+        if (row_details[1].text==""): # STAGE RACE missing position
+            series={"race_country_code":flag,"race_name":race,"race_class":race_class}
+            return False, pd.Series(series)
+
+        else: # ONE DAY RACE
+            series={"date":date,"type":"One Day","result":result,"gc_pos":np.NaN,"race_country_code":flag,"race_name":race,"race_class":race_class,"stage_name":np.NaN,"distance":distance,"pcs_points":pcs_points,"uci_points":uci_points,"url":url}
+
+    return True, pd.Series(series)
 
 """
 TODO
@@ -214,4 +303,10 @@ pd.set_option('display.max_columns', None) # print all rows
 # print(df)
 
 # df=scrape_stage_race_overview_competing_teams("https://www.procyclingstats.com/race/tour-de-france/2019/overview")
+# print(df)
+
+years=get_rider_years("https://www.procyclingstats.com/rider/wout-van-aert")
+print(years)
+
+# df=scrape_rider_year_results("https://www.procyclingstats.com/rider/caleb-ewan/2020")
 # print(df)
