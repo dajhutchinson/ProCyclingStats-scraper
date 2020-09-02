@@ -7,13 +7,65 @@ import numpy as np
 """
 STAGE RACING
 """
-def scrape_stage_race_stage_results(url) -> pd.DataFrame:
 
+# scrape details of each stage from stage race overview page
+def scrape_stage_race_overview_stages(url:str) -> pd.DataFrame:
+    # fetch data
     session=HTMLSession()
     response=session.get(url)
     response.html.render()
     soup=BeautifulSoup(response.html.html,"lxml")
 
+    # isolate desired list
+    left_div=soup.find("div",{"class":"w36"})
+    stage_list=left_div.find_all("ul")[1]
+
+    # get list items
+    stage_list_items=stage_list.find_all("li")
+
+    # prepare data frame
+    df=pd.DataFrame(columns=["date","stage_name","start_location","end_location","distance","url"])
+
+    # fill data frame
+    for list_item in stage_list_items:
+        if (list_item.text!="Rest day"): series=parse_stage_list_item(list_item) # not a rest day
+        else: series=pd.Series({"stage_name":"REST DAY"}) # is a rest day
+        df=df.append(series,ignore_index=True)
+
+    return df
+
+# parse details from list of stages on stage race overview page
+def parse_stage_list_item(list_item) -> pd.Series():
+    series={}
+
+    # date of stage
+    series["date"]=list_item.find("div").text
+
+    # url
+    stage_details=list_item.find("a")
+    series["url"]="www.procyclingstats.com/"+stage_details["href"]
+
+    # locations & name
+    stage_detail_divs=stage_details.find_all("div")
+    series["stage_name"]=stage_detail_divs[0].text
+    locations=stage_detail_divs[2].text.split("›")
+    series["start_location"]=locations[0].strip()
+    series["end_location"]=locations[1].strip()
+
+    # length of stage
+    series["distance"]=float(stage_details.find("span").text.replace("(","").replace("km)",""))
+
+    return pd.Series(series)
+
+# scrape finish results from stage of a stage race
+def scrape_stage_race_stage_results(url) -> pd.DataFrame:
+    # start session
+    session=HTMLSession()
+    response=session.get(url)
+    response.html.render()
+    soup=BeautifulSoup(response.html.html,"lxml")
+
+    # isolate desired table
     table=soup.find("table")
     results_table=table.find("tbody")
     rows=results_table.find_all("tr")
@@ -89,5 +141,8 @@ TODO
 
 pd.set_option('display.max_columns', None) # print all rows
 
-df=scrape_stage_race_stage_results("https://www.procyclingstats.com/race/tour-de-france/2020/stage-4")
-print(df)
+# df=scrape_stage_race_stage_results("https://www.procyclingstats.com/race/tour-de-france/2020/stage-4")
+# print(df)
+
+# df=scrape_stage_race_overview("https://www.procyclingstats.com/race/tour-de-france/2019/overview")
+# print(df)
