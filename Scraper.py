@@ -1,4 +1,5 @@
-from requests_html import HTMLSession
+from bs4 import BeautifulSoup
+from requests_html import HTMLSession # to remove
 from datetime import timedelta
 import pandas as pd
 import numpy as np
@@ -8,14 +9,14 @@ STAGE RACING
 """
 def scrape_stage_race_stage_results(url) -> pd.DataFrame:
 
-    session = HTMLSession()
-    r=session.get(url)
-    r.html.render() # run js (so table is actually filled)
+    session=HTMLSession()
+    response=session.get(url)
+    response.html.render()
+    soup=BeautifulSoup(response.html.html,"lxml")
 
-    # extract results table rows
-    results_table=r.html.find("table",first=True)
-    results_body=results_table.find("tbody",first=True)
-    rows=results_body.find("tr")
+    table=soup.find("table")
+    results_table=table.find("tbody")
+    rows=results_table.find_all("tr")
 
     # prepare data frame
     df=pd.DataFrame(columns=["stage_pos","gc_pos","gc_time_diff_after","bib_number","rider_age","team_name","rider_name","uci_points","points","finish_time"])
@@ -30,7 +31,7 @@ def scrape_stage_race_stage_results(url) -> pd.DataFrame:
 # parse a row from the table of results
 def parse_stage_race_stage_results_row(row) -> pd.Series:
     series={}
-    row_data=row.find("td")
+    row_data=row.find_all("td")
 
     # race details
     stage_pos=row_data[0].text
@@ -53,7 +54,7 @@ def parse_stage_race_stage_results_row(row) -> pd.Series:
     series["points"]=int(points) if (points!="") else 0
 
     # results
-    finish_time=row_data[9].find(".timeff",first=True).text
+    finish_time=row_data[9].find("span",{"class":"timeff"}).text
     series["finish_time"]=parse_finish_times(finish_time) if (finish_time!="-") else np.NaN
 
     return pd.Series(series)
@@ -87,5 +88,6 @@ TODO
 # stage race summaries
 
 pd.set_option('display.max_columns', None) # print all rows
+
 df=scrape_stage_race_stage_results("https://www.procyclingstats.com/race/tour-de-france/2020/stage-4")
 print(df)
