@@ -5,8 +5,64 @@ import pandas as pd
 import numpy as np
 
 """
-STAGE RACING
+STAGE RACING OVERVIEW
 """
+
+# scrape the list of top competitors & their urls from the overview page of a stagerace
+def scrape_stage_race_overview_top_competitors(url:str) -> pd.DataFrame:
+    # fetch data
+    session=HTMLSession()
+    response=session.get(url)
+    response.html.render()
+    soup=BeautifulSoup(response.html.html,"lxml")
+
+    # isolate list
+    right_div=soup.find_all("div",{"class":"w48"})[1]
+    top_competitor_list=right_div.find_all("ul")[0]
+    top_competitor_list_items=top_competitor_list.find_all("li")
+
+    # prepare data frame
+    df=pd.DataFrame(columns=["rider_name","rider_url","rider_nationality_code"])
+
+    # fill data frame
+    for list_item in top_competitor_list_items:
+        series={}
+        
+        series["rider_name"]=list_item.text
+        series["rider_url"]="www.procyclingstats.com/"+list_item.find("a")["href"]
+        series["rider_nationality_code"]=list_item.find("span",{"class":"flag"})["class"][-1]
+
+        df=df.append(pd.Series(series),ignore_index=True)
+
+    return df
+
+# scrape the list of teams & their urls from the overview page of a stagerace
+def scrape_stage_race_overview_competing_teams(url:str) -> pd.DataFrame:
+    # fetch data
+    session=HTMLSession()
+    response=session.get(url)
+    response.html.render()
+    soup=BeautifulSoup(response.html.html,"lxml")
+
+    # isolate list
+    right_div=soup.find_all("div",{"class":"w48"})[1]
+    top_competitor_list=right_div.find_all("ul")[1]
+    top_competitor_list_items=top_competitor_list.find_all("li")
+
+    # prepare data frame
+    df=pd.DataFrame(columns=["team_name","team_url"])
+
+    # fill data frame
+    for list_item in top_competitor_list_items:
+        series={}
+
+        series["team_name"]=list_item.text
+        series["team_url"]="www.procyclingstats.com/"+list_item.find("a")["href"]
+        series["team_nationality_code"]=list_item.find("span",{"class":"flag"})["class"][-1]
+
+        df=df.append(pd.Series(series),ignore_index=True)
+
+    return df
 
 # scrape details of each stage from stage race overview page
 def scrape_stage_race_overview_stages(url:str) -> pd.DataFrame:
@@ -24,7 +80,7 @@ def scrape_stage_race_overview_stages(url:str) -> pd.DataFrame:
     stage_list_items=stage_list.find_all("li")
 
     # prepare data frame
-    df=pd.DataFrame(columns=["date","stage_name","start_location","end_location","distance","url"])
+    df=pd.DataFrame(columns=["date","stage_name","start_location","end_location","profile","distance","stage_url"])
 
     # fill data frame
     for list_item in stage_list_items:
@@ -43,7 +99,7 @@ def parse_stage_list_item(list_item) -> pd.Series():
 
     # url
     stage_details=list_item.find("a")
-    series["url"]="www.procyclingstats.com/"+stage_details["href"]
+    series["stage_url"]="www.procyclingstats.com/"+stage_details["href"]
 
     # locations & name
     stage_detail_divs=stage_details.find_all("div")
@@ -52,10 +108,17 @@ def parse_stage_list_item(list_item) -> pd.Series():
     series["start_location"]=locations[0].strip()
     series["end_location"]=locations[1].strip()
 
+    # profile
+    series["profile"]=stage_details.find("div",{"class":"profile"})["class"][-2]
+
     # length of stage
     series["distance"]=float(stage_details.find("span").text.replace("(","").replace("km)",""))
 
     return pd.Series(series)
+
+"""
+STAGE RACING STAGES
+"""
 
 # scrape finish results from stage of a stage race
 def scrape_stage_race_stage_results(url) -> pd.DataFrame:
@@ -71,7 +134,7 @@ def scrape_stage_race_stage_results(url) -> pd.DataFrame:
     rows=results_table.find_all("tr")
 
     # prepare data frame
-    df=pd.DataFrame(columns=["stage_pos","gc_pos","gc_time_diff_after","bib_number","rider_age","team_name","rider_name","uci_points","points","finish_time"])
+    df=pd.DataFrame(columns=["stage_pos","gc_pos","gc_time_diff_after","bib_number","rider_age","team_name","rider_name","rider_nationality_code","uci_points","points","finish_time"])
 
     # fill data frame
     for row in rows:
@@ -98,6 +161,7 @@ def parse_stage_race_stage_results_row(row) -> pd.Series:
     series["rider_age"]=int(row_data[5].text)
     series["team_name"]=row_data[6].text
     series["rider_name"]=row_data[4].text.replace(series["team_name"],"")
+    series["rider_nationality_code"]=row_data[4].find("span",{"class":"flag"})["class"][-1]
 
     # point results
     uci_points=row_data[7].text
@@ -137,12 +201,17 @@ TODO
 """
 # auto scraping (ie how the urls are constructed)
 # race overviews
-# stage race summaries
 
 pd.set_option('display.max_columns', None) # print all rows
 
 # df=scrape_stage_race_stage_results("https://www.procyclingstats.com/race/tour-de-france/2020/stage-4")
 # print(df)
 
-# df=scrape_stage_race_overview("https://www.procyclingstats.com/race/tour-de-france/2019/overview")
+# df=scrape_stage_race_overview_stages("https://www.procyclingstats.com/race/tour-de-france/2019/overview")
+# print(df)
+
+# df=scrape_stage_race_overview_top_competitors("https://www.procyclingstats.com/race/tour-de-france/2019/overview")
+# print(df)
+
+# df=scrape_stage_race_overview_competing_teams("https://www.procyclingstats.com/race/tour-de-france/2019/overview")
 # print(df)
