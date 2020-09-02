@@ -27,6 +27,7 @@ STAGE RACING OVERVIEW
 """
 
 # scrape the list of top competitors & their urls from the overview page of a stagerace
+# https://www.procyclingstats.com/race/tour-de-france/2019/overview
 def scrape_stage_race_overview_top_competitors(url:str) -> pd.DataFrame:
     # fetch data
     session=HTMLSession()
@@ -55,6 +56,7 @@ def scrape_stage_race_overview_top_competitors(url:str) -> pd.DataFrame:
     return df
 
 # scrape the list of teams & their urls from the overview page of a stagerace
+# https://www.procyclingstats.com/race/tour-de-france/2019/overview
 def scrape_stage_race_overview_competing_teams(url:str) -> pd.DataFrame:
     # fetch data
     session=HTMLSession()
@@ -83,6 +85,7 @@ def scrape_stage_race_overview_competing_teams(url:str) -> pd.DataFrame:
     return df
 
 # scrape details of each stage from stage race overview page
+#https://www.procyclingstats.com/race/tour-de-france/2019/overview
 def scrape_stage_race_overview_stages(url:str) -> pd.DataFrame:
     # fetch data
     session=HTMLSession()
@@ -139,8 +142,8 @@ STAGE RACING STAGES
 """
 
 # scrape finish results from stage of a stage race
-# "https://www.procyclingstats.com/race/tour-de-france/2020/stage-5"
-def scrape_stage_race_stage_results(url) -> pd.DataFrame:
+# https://www.procyclingstats.com/race/tour-de-france/2020/stage-5
+def scrape_stage_race_stage_results(url:str) -> pd.DataFrame:
     # start session
     session=HTMLSession()
     response=session.get(url)
@@ -201,8 +204,10 @@ ONE DAY RACING
 """
 RIDER PROFILES
 """
+
 # returns list containing years in which results are held for a rider
-def get_rider_years(url) -> [int]:
+# e.g. https://www.procyclingstats.com/rider/caleb-ewan/
+def get_rider_years(url:str) -> [int]:
     # start session
     session=HTMLSession()
     response=session.get(url)
@@ -223,7 +228,7 @@ def get_rider_years(url) -> [int]:
 
 # scrape results from riders overview page (for a specific year)
 # e.g. https://www.procyclingstats.com/rider/caleb-ewan/2020
-def scrape_rider_year_results(url) -> pd.DataFrame:
+def scrape_rider_year_results(url:str) -> pd.DataFrame:
     # start session
     session=HTMLSession()
     response=session.get(url)
@@ -285,6 +290,25 @@ def parse_rider_year_results_row(row,current={"race":"","race_class":"","flag":"
 
     return True, pd.Series(series)
 
+# get all results for a specific rider in a single data frame
+# e.g. https://www.procyclingstats.com/rider/caleb-ewan/
+def scrape_rider_all_results(url:str) -> pd.DataFrame:
+    # ensure formating of url
+    if (url[-1]!="/"): url+="/"
+
+    # get years for which results exist
+    years=get_rider_years(url)
+
+    # fetch data for all years
+    all_results=pd.DataFrame()
+    for year in years:
+        new_url=url+str(year)
+        year_results=scrape_rider_year_results(new_url)
+        year_results["year"]=year # add column stating year of race
+        all_results=pd.concat([all_results,year_results],ignore_index=True) # add to table of all results
+
+    return all_results
+
 """
 TODO
 """
@@ -305,8 +329,12 @@ pd.set_option('display.max_columns', None) # print all rows
 # df=scrape_stage_race_overview_competing_teams("https://www.procyclingstats.com/race/tour-de-france/2019/overview")
 # print(df)
 
-years=get_rider_years("https://www.procyclingstats.com/rider/wout-van-aert")
-print(years)
+# years=get_rider_years("https://www.procyclingstats.com/rider/wout-van-aert")
+# print(years)
 
 # df=scrape_rider_year_results("https://www.procyclingstats.com/rider/caleb-ewan/2020")
+# print(df)
+
+# df=scrape_rider_all_results("https://www.procyclingstats.com/rider/caleb-ewan/")
+# df.to_csv("caleb_ewan_results.csv")
 # print(df)
