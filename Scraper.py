@@ -205,6 +205,80 @@ ONE DAY RACING
 RIDER PROFILES
 """
 
+# returns series specificing personal details by a rider
+# e.g. https://www.procyclingstats.com/rider/caleb-ewan/
+def get_rider_details(url:str) -> pd.Series:
+    series=pd.Series() # series to fill in
+
+    # start session
+    session=HTMLSession()
+    response=session.get(url)
+    response.html.render()
+    soup=BeautifulSoup(response.html.html,"lxml")
+
+    # find riders name
+    name_header=soup.find("h1")
+    name_header_text=name_header.text
+
+    # remove parts which are not in name
+    spans=name_header.find_all("span")
+    for span in spans: name_header_text=name_header_text.replace(span.text,"")
+
+    series["name"]=name_header_text.strip().rstrip()
+
+    # isolate desired table
+    info_div=soup.find("div",{"class":"rdr-info-cont"})
+
+    # extract details from body
+    text=info_div.text
+    series["dob"]=re.search("Date of birth: (.*) \(",text,re.IGNORECASE).group(1)
+    series["nationality"]=re.search("Nationality: (.*)Weight",text,re.IGNORECASE).group(1)
+    series["birth_place"]=re.search("Place of birth: (.*)Points per",text,re.IGNORECASE).group(1)
+    series["weight"]=re.search("([0-9]+ kg)",text,re.IGNORECASE).group(1)
+    series["height"]=re.search("([0-2].[0-9]{2} m)",text,re.IGNORECASE).group(1)
+
+    # rating points
+    pps_list_items=info_div.find("ul",{"class":"pps"}).find_all("li")
+    for item in pps_list_items:
+        point_type=item["class"][0]
+        series["points_"+point_type]=item.find_all("span")[1].text
+
+    return series
+
+# get dataframe containing teams a rider has ridden for
+# https://www.procyclingstats.com/rider/philippe-gilbert
+def get_rider_teams(url:str) -> pd.DataFrame:
+    # start session
+    session=HTMLSession()
+    response=session.get(url)
+    response.html.render()
+    soup=BeautifulSoup(response.html.html,"lxml")
+
+    # isolate team table
+    team_list=soup.find("ul",{"class":"rdr-teams"})
+    team_list_items=team_list.find_all("li")
+
+    df=pd.DataFrame(columns=["year","team_name","team_class","team_url"])
+
+    for item in team_list_items:
+        series={}
+
+        item_details=item.find_all("span")
+
+        if (len(item_details[0].text)==4): # on occassion a retirement is noted here
+            series["year"]=int(item_details[0].text)
+
+            anchor=item_details[1].find("a")
+            series["team_url"]="www.procyclingstats.com/"+anchor["href"]
+            series["team_name"]=anchor.text
+
+            series["team_class"]=re.search("\((\w+)\)",item_details[1].text,re.IGNORECASE).group(1)
+
+            df=df.append(pd.Series(series),ignore_index=True)
+
+    df=df.set_index("year")
+    return df
+
 # returns list containing years in which results are held for a rider
 # e.g. https://www.procyclingstats.com/rider/caleb-ewan/
 def get_rider_years(url:str) -> [int]:
@@ -334,6 +408,12 @@ pd.set_option('display.max_columns', None) # print all rows
 
 # df=scrape_rider_year_results("https://www.procyclingstats.com/rider/caleb-ewan/2020")
 # print(df)
+
+# series=get_rider_details("https://www.procyclingstats.com/rider/caleb-ewan/")
+# print(series)
+
+df=get_rider_teams("https://www.procyclingstats.com/rider/philippe-gilbert")
+print(df)
 
 # df=scrape_rider_all_results("https://www.procyclingstats.com/rider/caleb-ewan/")
 # df.to_csv("caleb_ewan_results.csv")
