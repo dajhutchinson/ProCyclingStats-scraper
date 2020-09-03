@@ -23,6 +23,91 @@ def parse_finish_times(time_str:str) -> timedelta:
 
 
 """
+AVAILABLE DATA
+"""
+# scrape all races which happen in a year
+# e.g. https://www.procyclingstats.com/races.php?year=2020
+def scrape_races_for_year(year=2020) -> pd.DataFrame:
+    years=get_available_tours_for_year(year)
+
+    # prepare data frame
+    df=pd.DataFrame()
+
+    for key,value in years.items():
+        print("{}             ".format(key),end="\r")
+        year_race_series=scrape_tour_races_for_year(year=year,tour_code=value)
+        year_race_series["tour"]=key
+        year_race_series["tour_code"]=value
+        df=pd.concat([df,year_race_series],ignore_index=True)
+
+    return df
+
+# get dictionary of all race series run in a given year (as well as ids)
+# e.g. https://www.procyclingstats.com/races.php?year=2020
+def get_available_tours_for_year(year=2020) -> {str:int}:
+    # format url
+    url="https://www.procyclingstats.com/races.php?year={}".format(year)
+
+    # fetch data
+    session=HTMLSession()
+    response=session.get(url)
+    response.html.render()
+    soup=BeautifulSoup(response.html.html,"lxml")
+
+    # isolate input field
+    select_field=soup.find("select",{"name":"circuit"})
+    select_field_options=select_field.find_all("option")
+
+    # prepare dict
+    tours={}
+
+    # fill dict
+    for option in select_field_options:
+        tours[option.text]=int(option["value"])
+
+    return tours
+
+# scrape all races in a given year for a given series
+# https://www.procyclingstats.com/races.php?year=2020&circuit=1
+def scrape_tour_races_for_year(year=2020,tour_code=1) -> pd.DataFrame:
+    # format url
+    url="https://www.procyclingstats.com/races.php?year={}&circuit={}".format(year,tour_code)
+
+    # fetch data
+    session=HTMLSession()
+    response=session.get(url)
+    response.html.render()
+    soup=BeautifulSoup(response.html.html,"lxml")
+
+    table_div=soup.find("div",{"class":"tableCont"})
+    table_body=table_div.find("tbody")
+    table_rows=table_body.find_all("tr")
+
+    df=pd.DataFrame(columns=["race_dates","race_name","stage_race","race_class","race_country_code","cancelled","race_url"])
+
+    for row in table_rows:
+        series=parse_tour_races_for_year_row(row)
+        df=df.append(series,ignore_index=True)
+
+    return df
+
+def parse_tour_races_for_year_row(row) -> pd.Series:
+    series={}
+
+    row_details=row.find_all("td")
+
+    # extract details
+    series["cancelled"]=("striked" in row["class"])
+    series["race_dates"]=row_details[0].text
+    series["stage_race"]=("-" in row_details[0].text)
+    series["race_country_code"]=row_details[1].find("span",{"class":"flag"})["class"][-1]
+    series["race_url"]="https://www.procyclingstats.com/"+row_details[1].find("a")["href"]
+    series["race_name"]=row_details[1].find("a").text
+    series["race_class"]=row_details[3].text
+
+    return pd.Series(series)
+
+"""
 STAGE RACING OVERVIEW
 """
 
@@ -112,7 +197,7 @@ def scrape_stage_race_overview_stages(url:str) -> pd.DataFrame:
     return df
 
 # parse details from list of stages on stage race overview page
-def parse_stage_list_item(list_item) -> pd.Series():
+def parse_stage_list_item(list_item) -> pd.Series:
     series={}
 
     # date of stage
@@ -406,13 +491,23 @@ TODO
 
 pd.set_option('display.max_columns', None) # print all rows
 
-df=scrape_stage_race_stage_results("https://www.procyclingstats.com/race/tour-de-france/2020/stage-5")
+# tours=get_available_tours_for_year(2020)
+# print(tours)
+
+# df=scrape_tour_races_for_year(2020,15)
+# print(df)
+
+df=scrape_races_for_year(2020)
+print(df)
+
+# df=scrape_stage_race_stage_results("https://www.procyclingstats.com/race/tour-de-france/2020/stage-5")
+# print(df)
 
 # df=scrape_stage_race_overview_stages("https://www.procyclingstats.com/race/tour-de-france/2019/overview")
 # print(df)
 
-dfs=scrape_stage_race_all_stage_results("https://www.procyclingstats.com/race/tour-de-france/2020/overview")
-print(len(dfs),dfs[0],dfs[-1],sep="\n")
+# dfs=scrape_stage_race_all_stage_results("https://www.procyclingstats.com/race/tour-de-france/2020/overview")
+# print(len(dfs),dfs[0],dfs[-1],sep="\n")
 
 # df=scrape_stage_race_overview_top_competitors("https://www.procyclingstats.com/race/tour-de-france/2019/overview")
 # print(df)
