@@ -140,6 +140,19 @@ def parse_stage_list_item(list_item) -> pd.Series():
 """
 STAGE RACING STAGES
 """
+# return a list containing a data frame for each stage of a race
+# https://www.procyclingstats.com/race/tour-de-france/2020/gc/overview
+def scrape_stage_race_all_stage_results(url:str) -> [pd.DataFrame]:
+    stages=scrape_stage_race_overview_stages(url)
+
+    results=[]
+    for stage_url in stages[stages["stage_name"]!="REST DAY"]["stage_url"]:
+        if stage_url[:4]!="http": stage_url="https://"+stage_url
+        print(stage_url)
+        stage_results_df=scrape_stage_race_stage_results(stage_url)
+        results.append(stage_results_df)
+
+    return results
 
 # scrape finish results from stage of a stage race
 # https://www.procyclingstats.com/race/tour-de-france/2020/stage-5
@@ -152,6 +165,8 @@ def scrape_stage_race_stage_results(url:str) -> pd.DataFrame:
 
     # isolate desired table
     table=soup.find("table")
+    if (table is None): return None # results don't exist
+
     results_table=table.find("tbody")
     rows=results_table.find_all("tr")
 
@@ -174,7 +189,7 @@ def parse_stage_race_stage_results_row(row) -> pd.Series:
     stage_pos=row_data[0].text
     gc_pos=row_data[1].text
     gc_time_diff_after=row_data[2].text.replace("+","")
-    series["stage_pos"]=int(stage_pos) if (stage_pos!="DNF") else np.NaN
+    series["stage_pos"]=int(stage_pos) if (stage_pos not in ["DNF","OTL","DNS"]) else np.NaN
     series["gc_pos"]=int(gc_pos) if (gc_pos!="") else np.NaN
     series["gc_time_diff_after"]=parse_finish_times(gc_time_diff_after) if ("-" not in gc_time_diff_after) else np.NaN
     series["bib_number"]=int(row_data[3].text)
@@ -391,11 +406,13 @@ TODO
 
 pd.set_option('display.max_columns', None) # print all rows
 
-# df=scrape_stage_race_stage_results("https://www.procyclingstats.com/race/tour-de-france/2020/stage-4")
-# print(df)
+df=scrape_stage_race_stage_results("https://www.procyclingstats.com/race/tour-de-france/2020/stage-5")
 
 # df=scrape_stage_race_overview_stages("https://www.procyclingstats.com/race/tour-de-france/2019/overview")
 # print(df)
+
+dfs=scrape_stage_race_all_stage_results("https://www.procyclingstats.com/race/tour-de-france/2020/overview")
+print(len(dfs),dfs[0],dfs[-1],sep="\n")
 
 # df=scrape_stage_race_overview_top_competitors("https://www.procyclingstats.com/race/tour-de-france/2019/overview")
 # print(df)
@@ -412,8 +429,8 @@ pd.set_option('display.max_columns', None) # print all rows
 # series=get_rider_details("https://www.procyclingstats.com/rider/caleb-ewan/")
 # print(series)
 
-df=get_rider_teams("https://www.procyclingstats.com/rider/philippe-gilbert")
-print(df)
+# df=get_rider_teams("https://www.procyclingstats.com/rider/philippe-gilbert")
+# print(df)
 
 # df=scrape_rider_all_results("https://www.procyclingstats.com/rider/caleb-ewan/")
 # df.to_csv("caleb_ewan_results.csv")
