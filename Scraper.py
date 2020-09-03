@@ -173,6 +173,45 @@ def parse_team_div(div) -> pd.DataFrame:
     return df
 
 """
+AVAILABLE RIDERS
+"""
+
+# e.g. https://www.procyclingstats.com/team/ag2r-la-mondiale-2020
+def scrape_riders_from_team(url:str) -> pd.DataFrame:
+    # fetch data
+    session=HTMLSession()
+    response=session.get(url)
+    response.html.render()
+    soup=BeautifulSoup(response.html.html,"lxml")
+
+    # isolate rider list
+    rider_list=soup.find("ul",{"class","riderlist"})
+    rider_list_items=rider_list.find_all("li")
+
+    # prepare data frame
+    df=pd.DataFrame(columns=["rider_name","rider_nationality_code","rider_career_points","rider_age","rider_url"])
+
+    # fill data frame
+    for item in rider_list_items:
+        series=parse_rider_list_item(item)
+        df=df.append(series,ignore_index=True)
+
+    return df
+
+def parse_rider_list_item(item) -> pd.Series:
+    series={}
+
+    anchor=item.find("a")
+    series["rider_name"]=anchor.text
+    series["rider_url"]="www.procyclingstats.com/"+anchor["href"]
+
+    series["rider_nationality_code"]=item["data-nation"]
+    series["rider_career_points"]=item["data-pnts"]
+    series["rider_age"]=item["data-age"]
+
+    return pd.Series(series)
+
+"""
 STAGE RACING OVERVIEW
 """
 
@@ -567,6 +606,9 @@ pd.set_option('display.max_columns', None) # print all rows
 
 # df=scrape_teams_for_year(2020)
 # print(df)
+
+df=scrape_riders_from_team("https://www.procyclingstats.com/team/ag2r-la-mondiale-2020")
+print(df)
 
 # df=scrape_stage_race_stage_results("https://www.procyclingstats.com/race/tour-de-france/2020/stage-5")
 # print(df)
