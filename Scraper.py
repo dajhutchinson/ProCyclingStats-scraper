@@ -25,6 +25,35 @@ def parse_finish_times(time_str:str) -> timedelta:
 """
 AVAILABLE RACES
 """
+# get list of editions for a race
+# e.g. https://www.procyclingstats.com/race/gp-samyn/overview
+def get_race_editions(url:str) -> pd.DataFrame:
+    # start session
+    session=HTMLSession()
+    response=session.get(url)
+    response.html.render()
+    soup=BeautifulSoup(response.html.html,"lxml")
+
+    # isolate select options
+    div=soup.find("div",{"class":"editions"})
+    edition_select=div.find("select")
+    edition_options=edition_select.find_all("option")
+
+    # prepare data frame
+    df=pd.DataFrame(columns=["year","edition_url"])
+
+    # fill data frame
+    for option in edition_options:
+        series={}
+
+        series["year"]=option.text
+        series["edition_url"]="https://www.procyclingstats.com/"+option["value"]
+
+        series=pd.Series(series)
+        df=df.append(series,ignore_index=True)
+
+    return df
+
 # scrape all races which happen in a year
 # e.g. https://www.procyclingstats.com/races.php?year=2020
 def scrape_races_for_year(year=2020) -> pd.DataFrame:
@@ -165,7 +194,7 @@ def parse_team_div(div) -> pd.DataFrame:
         series={}
 
         series["team_name"]=anchors[i].text
-        series["team_url"]="www.procyclingstats.com/"+anchors[i]["href"]
+        series["team_url"]="https://www.procyclingstats.com/"+anchors[i]["href"]
         series["team_nationality_code"]=spans[i]["class"][-1]
 
         df=df.append(pd.Series(series),ignore_index=True)
@@ -203,7 +232,7 @@ def parse_rider_list_item(item) -> pd.Series:
 
     anchor=item.find("a")
     series["rider_name"]=anchor.text
-    series["rider_url"]="www.procyclingstats.com/"+anchor["href"]
+    series["rider_url"]="https://www.procyclingstats.com/"+anchor["href"]
 
     series["rider_nationality_code"]=item["data-nation"]
     series["rider_career_points"]=item["data-pnts"]
@@ -237,7 +266,7 @@ def scrape_stage_race_overview_top_competitors(url:str) -> pd.DataFrame:
         series={}
 
         series["rider_name"]=list_item.text
-        series["rider_url"]="www.procyclingstats.com/"+list_item.find("a")["href"]
+        series["rider_url"]="https://www.procyclingstats.com/"+list_item.find("a")["href"]
         series["rider_nationality_code"]=list_item.find("span",{"class":"flag"})["class"][-1]
 
         df=df.append(pd.Series(series),ignore_index=True)
@@ -266,7 +295,7 @@ def scrape_stage_race_overview_competing_teams(url:str) -> pd.DataFrame:
         series={}
 
         series["team_name"]=list_item.text
-        series["team_url"]="www.procyclingstats.com/"+list_item.find("a")["href"]
+        series["team_url"]="https://www.procyclingstats.com/"+list_item.find("a")["href"]
         series["team_nationality_code"]=list_item.find("span",{"class":"flag"})["class"][-1]
 
         df=df.append(pd.Series(series),ignore_index=True)
@@ -309,7 +338,7 @@ def parse_stage_list_item(list_item) -> pd.Series:
 
     # url
     stage_details=list_item.find("a")
-    series["stage_url"]="www.procyclingstats.com/"+stage_details["href"]
+    series["stage_url"]="https://www.procyclingstats.com/"+stage_details["href"]
 
     # locations & name
     stage_detail_divs=stage_details.find_all("div")
@@ -405,6 +434,61 @@ def parse_stage_race_stage_results_row(row) -> pd.Series:
 ONE DAY RACING
 """
 
+# scrape finish results from one day race
+# e.g. https://www.procyclingstats.com/race/gp-samyn/2020/result
+def scrape_one_day_results(url:str) -> pd.DataFrame:
+    # start session
+    session=HTMLSession()
+    response=session.get(url)
+    response.html.render()
+    soup=BeautifulSoup(response.html.html,"lxml")
+
+    # isolate desired table
+    table=soup.find("table")
+    if (table is None): return None # results don't exist
+
+    results_table=table.find("tbody")
+    rows=results_table.find_all("tr")
+
+    # prepare data frame
+    df=pd.DataFrame(columns=["finish_pos","bib_number","rider_age","team_name","rider_name","rider_nationality_code","uci_points","points","finish_time"])
+
+    # fill data frame
+    for row in rows:
+        series=parse_one_day_results_row(row)
+        df=df.append(series,ignore_index=True)
+
+    return df
+
+# parse a row from the table of results
+def parse_one_day_results_row(row) -> pd.Series:
+    series={}
+    row_data=row.find_all("td")
+
+    # race details
+    finish_pos=row_data[0].text
+    series["finish_pos"]=int(finish_pos) if (finish_pos not in ["DNF","OTL","DNS"]) else np.NaN
+    series["bib_number"]=int(row_data[1].text)
+
+    # rider and team details
+    series["team_name"]=row_data[4].text
+    series["rider_name"]=row_data[2].text.replace(series["team_name"],"")
+    series["rider_nationality_code"]=row_data[2].find("span",{"class":"flag"})["class"][-1]
+    series["rider_age"]=int(row_data[3].text)
+
+    # point results
+    uci_points=row_data[5].text
+    points=row_data[6].text
+    series["uci_points"]=int(uci_points) if (uci_points!="") else 0
+    series["points"]=int(points) if (points!="") else 0
+
+    # results
+    finish_time=row_data[7].find("span",{"class":"timeff"}).text
+    series["finish_time"]=parse_finish_times(finish_time) if (finish_time!="-") else np.NaN
+
+    return pd.Series(series)
+
+
 """
 RIDER PROFILES
 """
@@ -473,7 +557,7 @@ def get_rider_teams(url:str) -> pd.DataFrame:
             series["year"]=int(item_details[0].text)
 
             anchor=item_details[1].find("a")
-            series["team_url"]="www.procyclingstats.com/"+anchor["href"]
+            series["team_url"]="https://www.procyclingstats.com/"+anchor["href"]
             series["team_name"]=anchor.text
 
             series["team_class"]=re.search("\((\w+)\)",item_details[1].text,re.IGNORECASE).group(1)
@@ -541,7 +625,7 @@ def parse_rider_year_results_row(row,current={"race":"","race_class":"","flag":"
     result=row_details[1].text
     gc_pos=row_details[2].text
     name=row_details[4].text
-    url="www.procyclingstats.com/"+row_details[4].find("a")["href"]
+    url="https://www.procyclingstats.com/"+row_details[4].find("a")["href"]
     distance=row_details[5].text
     pcs_points=row_details[6].text
     uci_points=row_details[7].text
@@ -607,8 +691,8 @@ pd.set_option('display.max_columns', None) # print all rows
 # df=scrape_teams_for_year(2020)
 # print(df)
 
-df=scrape_riders_from_team("https://www.procyclingstats.com/team/ag2r-la-mondiale-2020")
-print(df)
+# df=scrape_riders_from_team("https://www.procyclingstats.com/team/ag2r-la-mondiale-2020")
+# print(df)
 
 # df=scrape_stage_race_stage_results("https://www.procyclingstats.com/race/tour-de-france/2020/stage-5")
 # print(df)
@@ -640,3 +724,9 @@ print(df)
 # df=scrape_rider_all_results("https://www.procyclingstats.com/rider/caleb-ewan/")
 # df.to_csv("caleb_ewan_results.csv")
 # print(df)
+
+# df=scrape_one_day_results("https://www.procyclingstats.com/race/gp-samyn/2020/result")
+# print(df)
+
+df=get_race_editions("https://www.procyclingstats.com/race/tour-de-france")
+print(df)
