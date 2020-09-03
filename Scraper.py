@@ -23,7 +23,7 @@ def parse_finish_times(time_str:str) -> timedelta:
 
 
 """
-AVAILABLE DATA
+AVAILABLE RACES
 """
 # scrape all races which happen in a year
 # e.g. https://www.procyclingstats.com/races.php?year=2020
@@ -106,6 +106,71 @@ def parse_tour_races_for_year_row(row) -> pd.Series:
     series["race_class"]=row_details[3].text
 
     return pd.Series(series)
+
+"""
+AVAILABLE TEAMS
+"""
+# scrape all world tour & contintental teams for a given year
+# e.g. https://www.procyclingstats.com/teams.php?s=worldtour&year=2005
+def scrape_teams_for_year(year=2020):
+    url="https://www.procyclingstats.com/teams.php?s=worldtour&year={}".format(year)
+
+    # fetch data
+    session=HTMLSession()
+    response=session.get(url)
+    response.html.render()
+    soup=BeautifulSoup(response.html.html,"lxml")
+
+    df=pd.DataFrame()
+
+    # isolate areas
+    div=soup.find("div",{"class":"statDivLeft"})
+
+    # get team classifications
+    headings=div.find_all("h3")
+    headings=[heading.text for heading in headings]
+
+    # isolate team divs
+    team_divs=div.find_all("div",{"class":"teamsOverview"})
+
+    # top class
+    class_name=headings[0]
+    class_divs=team_divs[:2]
+
+    # fill data frame
+    for div in class_divs:
+        div_df=parse_team_div(div)
+        div_df["team_class"]=class_name
+        df=pd.concat([df,div_df],ignore_index=True)
+
+    # second class
+    class_name=headings[1]
+    class_divs=team_divs[2:]
+
+    # fill data frame
+    for div in class_divs:
+        div_df=parse_team_div(div)
+        div_df["team_class"]=class_name
+        df=pd.concat([df,div_df],ignore_index=True)
+
+    return df
+
+def parse_team_div(div) -> pd.DataFrame:
+    anchors=div.find_all("a")
+    spans=div.find_all("span")
+
+    df=pd.DataFrame(columns=["team_name","team_nationality_code","team_url"])
+
+    for i in range(len(anchors)):
+        series={}
+
+        series["team_name"]=anchors[i].text
+        series["team_url"]="www.procyclingstats.com/"+anchors[i]["href"]
+        series["team_nationality_code"]=spans[i]["class"][-1]
+
+        df=df.append(pd.Series(series),ignore_index=True)
+
+    return df
 
 """
 STAGE RACING OVERVIEW
@@ -497,8 +562,11 @@ pd.set_option('display.max_columns', None) # print all rows
 # df=scrape_tour_races_for_year(2020,15)
 # print(df)
 
-df=scrape_races_for_year(2020)
-print(df)
+# df=scrape_races_for_year(2020)
+# print(df)
+
+# df=scrape_teams_for_year(2020)
+# print(df)
 
 # df=scrape_stage_race_stage_results("https://www.procyclingstats.com/race/tour-de-france/2020/stage-5")
 # print(df)
