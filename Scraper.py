@@ -303,6 +303,45 @@ def parse_team_startlist_div(div) -> pd.DataFrame:
 
     return df
 
+# extract information about race
+# e.g. https://www.procyclingstats.com/race/tour-de-france/2020/stage-8
+def scrape_race_information(url) -> pd.Series:
+    series={}
+
+    # fetch data
+    session=HTMLSession()
+    response=session.get(url)
+    response.html.render()
+    soup=BeautifulSoup(response.html.html,"lxml")
+
+    # isolate data location
+    information_div=soup.find("div",{"class":"res-right"})
+    text=information_div.text
+
+    series["date"]=re.search("Date: (.*)Race Category",text,re.IGNORECASE).group(1)
+    series["race_cat"]=re.search("Race category: (.*)Parcours",text,re.IGNORECASE).group(1)
+    if (series["race_cat"].strip()==""): series["race_cat"]=None
+
+    series["parcours_rating"]=int(re.search("([0-9]+)\*?PCS",text,re.IGNORECASE).group(1))
+    if (series["parcours_rating"]==0): series["parcours_rating"]=None
+
+    # extract location data if it exists
+    try:
+        series["start_location"]=re.search("finish: (.*) ›",text,re.IGNORECASE).group(1)
+        series["end_location"]=re.search("› (.*)Climbs",text,re.IGNORECASE).group(1)
+    except:
+        series["start_location"]=None
+        series["end_location"]=None
+
+    points_scale=re.search("scale: (.*) Start/",text,re.IGNORECASE)
+    if points_scale is None: points_scale=re.search("scale: (.*) ",text,re.IGNORECASE)
+    series["pcs_points_scale"]=points_scale.group(1)
+
+    series["profile"]=information_div.find("span",{"class":"profile"})["class"][-1]
+    if (series["profile"]=="p0"): series["profile"]=None # data missing
+
+    return pd.Series(series)
+
 """
 STAGE RACING OVERVIEW
 """
@@ -766,8 +805,11 @@ pd.set_option('display.max_columns', None) # print all rows
 # dfs=scrape_stage_race_all_stage_results("https://www.procyclingstats.com/race/tour-de-france/2020/overview")
 # print(len(dfs),dfs[0],dfs[-1],sep="\n")
 
-df=scrape_race_startlist("https://www.procyclingstats.com/race/tour-de-france/2020/startlist")
-print(df)
+# df=scrape_race_startlist("https://www.procyclingstats.com/race/tour-de-france/2020/startlist")
+# print(df)
+
+# series=scrape_race_information("https://www.procyclingstats.com/race/tour-de-france/2020/stage-8")
+# print(series)
 
 # df=scrape_stage_race_overview_top_competitors("https://www.procyclingstats.com/race/tour-de-france/2019/overview")
 # print(df)
