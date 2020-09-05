@@ -241,6 +241,69 @@ def parse_rider_list_item(item) -> pd.Series:
     return pd.Series(series)
 
 """
+RACE DETAILS
+"""
+# scrape rider startlist for a race
+# https://www.procyclingstats.com/race/tour-de-france/2020/startlist
+def scrape_race_startlist(url) -> pd.DataFrame:
+    # ensure url is for startlist
+    if (url[-9:]!="startlist"):
+        if (url[-1]!="/"): url+="/"
+        url+="startlist"
+
+    # fetch data
+    session=HTMLSession()
+    response=session.get(url)
+    response.html.render()
+    soup=BeautifulSoup(response.html.html,"lxml")
+
+    # isolate rider lists
+    team_lists=soup.find_all("li",{"class":"team"})
+
+    # prepare data frame
+    df=pd.DataFrame(columns=["bib_number","rider_name","rider_nationality_code","team_name","rider_url","team_url"])
+
+    # fill data frame
+    for team in team_lists:
+        team_df=parse_team_startlist_div(team)
+        df=pd.concat([df,team_df])
+
+    return df
+
+def parse_team_startlist_div(div) -> pd.DataFrame:
+    df=pd.DataFrame(columns=["bib_number","rider_name","rider_nationality_code","team_name","rider_url","team_url"])
+
+    # extract team data
+    heading=div.find("h4")
+    team_name=heading.find("a").text
+    team_url="https://www.procyclingstats.com/"+heading.find("a")["href"]
+
+    # isolate riders
+    rider_list=div.find("div",{"class":"riders"})
+    spans=rider_list.find_all("span")
+
+    # isolate rider data
+    bib_numbers=rider_list.find_all("span",{"class":None},recursive=False)
+    riders=rider_list.find_all("a",{"class":"rider"})
+    flags=rider_list.find_all("span",{"class":"flag"},recursive=False)
+
+    # parse rider data
+    for i in range(len(bib_numbers)):
+        series={}
+
+        series["bib_number"]=int(bib_numbers[i].text.strip().rstrip())
+        series["rider_name"]=riders[i].text
+        series["rider_nationality_code"]=flags[i]["class"][-1]
+        series["rider_url"]="https://www.procyclingstats.com/"+riders[i]["href"]
+
+        series["team_name"]=team_name
+        series["team_url"]=team_url
+
+        df=df.append(pd.Series(series),ignore_index=True)
+
+    return df
+
+"""
 STAGE RACING OVERVIEW
 """
 
@@ -703,6 +766,9 @@ pd.set_option('display.max_columns', None) # print all rows
 # dfs=scrape_stage_race_all_stage_results("https://www.procyclingstats.com/race/tour-de-france/2020/overview")
 # print(len(dfs),dfs[0],dfs[-1],sep="\n")
 
+df=scrape_race_startlist("https://www.procyclingstats.com/race/tour-de-france/2020/startlist")
+print(df)
+
 # df=scrape_stage_race_overview_top_competitors("https://www.procyclingstats.com/race/tour-de-france/2019/overview")
 # print(df)
 
@@ -728,5 +794,5 @@ pd.set_option('display.max_columns', None) # print all rows
 # df=scrape_one_day_results("https://www.procyclingstats.com/race/gp-samyn/2020/result")
 # print(df)
 
-df=get_race_editions("https://www.procyclingstats.com/race/tour-de-france")
-print(df)
+# df=get_race_editions("https://www.procyclingstats.com/race/tour-de-france")
+# print(df)
