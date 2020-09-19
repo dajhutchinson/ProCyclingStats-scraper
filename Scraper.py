@@ -9,7 +9,17 @@ import re
 UTILITY
 """
 # parse finish time string
-def parse_finish_times(time_str:str) -> timedelta:
+def parse_finish_time(time_str:str) -> timedelta:
+    """
+    SUMMARY
+    parse string of finish times to a datetime.timedelta
+
+    PARAMETERS
+    time_str (str): string to parse
+
+    OUTPUT
+    datetime.timedelta: parsed timedelta
+    """
     spl=time_str.split(":")
     spl=[int(val) for val in spl]
 
@@ -25,9 +35,22 @@ def parse_finish_times(time_str:str) -> timedelta:
 """
 AVAILABLE RACES
 """
-# get list of editions for a race
-# e.g. https://www.procyclingstats.com/race/gp-samyn/overview
+
 def get_race_editions(url:str) -> pd.DataFrame:
+    """
+    SUMMARY
+    get list of editions (years) from a race's overview page
+    E.G. https://www.procyclingstats.com/race/gp-samyn/overview
+
+    PARAMETERS
+    url (str): url for a race's overview page
+
+    OUTPUT
+    pandas.DataFrame: fetched data includes:
+                        "year" (int) year of edition
+                        "edition_url" (str) full url to overview page of edition
+    """
+
     # start session
     session=HTMLSession()
     response=session.get(url)
@@ -54,9 +77,27 @@ def get_race_editions(url:str) -> pd.DataFrame:
 
     return df
 
-# scrape all races which happen in a year
-# e.g. https://www.procyclingstats.com/races.php?year=2020
 def scrape_races_for_year(year=2020) -> pd.DataFrame:
+    """
+    SUMMARY
+    get details of all races which occurred in a given year (for all available tours).
+    E.G. https://www.procyclingstats.com/races.php?year=2020
+
+    PARAMETERS
+    year (int): year to get races for (default=2020)
+
+    OUTPUT
+    pandas.DataFrame: fetched data includes:
+                        "race_dates" (str) string of when race occurred (either "M.D - M.D" or "M.D")
+                        "race_name" (str) name of race
+                        "stage_race" (bool) whether race is a stage race of not
+                        "race_class" (str) classification of race
+                        "race_country_code" (str) code for host country
+                        "cancelled" (bool) whether race was/is cancelled
+                        "race_url" (str) full url to race overview page
+                        "tour" (str) name of tour race occured in
+                        "tour_code" (int) PCS code for tour in
+    """
     years=get_available_tours_for_year(year)
 
     # prepare data frame
@@ -71,9 +112,18 @@ def scrape_races_for_year(year=2020) -> pd.DataFrame:
 
     return df
 
-# get dictionary of all race series run in a given year (as well as ids)
-# e.g. https://www.procyclingstats.com/races.php?year=2020
 def get_available_tours_for_year(year=2020) -> {str:int}:
+    """
+    SUMMARY
+    get details for all tours which occured in a given year.
+    E.G. https://www.procyclingstats.com/races.php?year=2020
+
+    PARAMETERS
+    year (int): year to get tours for (default=2020)
+
+    OUTPUT
+    {str:int}: dictionary from `tour_name` to `tour_code`
+    """
     # format url
     url="https://www.procyclingstats.com/races.php?year={}".format(year)
 
@@ -96,9 +146,26 @@ def get_available_tours_for_year(year=2020) -> {str:int}:
 
     return tours
 
-# scrape all races in a given year for a given series
-# https://www.procyclingstats.com/races.php?year=2020&circuit=1
 def scrape_tour_races_for_year(year=2020,tour_code=1) -> pd.DataFrame:
+    """
+    SUMMARY
+    get details for all races which occured in a given tour, in a given year
+    E.G. https://www.procyclingstats.com/races.php?year=2020&circuit=1
+
+    PARAMETERS
+    year (int): year to get races from (default=2020)
+    tour_code (int): PCS code for tour to get details of (default=1)
+
+    OUTPUT
+    pandas.DataFrame: fetched data includes:
+                        "race_dates" (str) string of when race occurred (either "M.D - M.D" or "M.D")
+                        "race_name" (str) name of race
+                        "stage_race" (bool) whether race is a stage race of not
+                        "race_class" (str) classification of race
+                        "race_country_code" (str) code for host country
+                        "cancelled" (bool) whether race was/is cancelled
+                        "race_url" (str) full url to race overview page
+    """
     # format url
     url="https://www.procyclingstats.com/races.php?year={}&circuit={}".format(year,tour_code)
 
@@ -121,6 +188,24 @@ def scrape_tour_races_for_year(year=2020,tour_code=1) -> pd.DataFrame:
     return df
 
 def parse_tour_races_for_year_row(row) -> pd.Series:
+    """
+    SUMMARY
+    parse details from row of table of races in a given year & tour
+    used by Scraper.scrape_tour_races_for_year
+
+    PARAMETERS
+    row (bs4.element.Tag): row from table
+
+    OUTPUT
+    pandas.Series: fetched data includes:
+                        "race_dates" (str) string of when race occurred (either "M.D - M.D" or "M.D")
+                        "race_name" (str) name of race
+                        "stage_race" (bool) whether race is a stage race of not
+                        "race_class" (str) classification of race
+                        "race_country_code" (str) code for host country
+                        "cancelled" (bool) whether race was/is cancelled
+                        "race_url" (str) full url to race overview page
+    """
     series={}
 
     row_details=row.find_all("td")
@@ -139,9 +224,25 @@ def parse_tour_races_for_year_row(row) -> pd.Series:
 """
 AVAILABLE TEAMS
 """
-# scrape all world tour & contintental teams for a given year
-# e.g. https://www.procyclingstats.com/teams.php?s=worldtour&year=2005
-def scrape_teams_for_year(year=2020):
+
+def scrape_teams_for_year(year=2020) -> pd.DataFrame:
+    """
+    SUMMARY
+    scrape all world tour & continental teams in a given year
+    E.G. https://www.procyclingstats.com/teams.php?s=worldtour&year=2005
+
+    PARAMETERS
+    year (int): year to get teams from
+
+    OUTPUT
+    pandas.DataFrame: fetched data includes
+                        "team_name" (str) name of team
+                        "team_nationality_code" (str) PCS code for home nation of team
+                        "team_url" (str) full url to overview of team in given year
+                        "team_class_name" (str) name of team's classification
+                        "team_class" (int) team's classification (`
+                        ` for top, `2` for not)
+    """
     url="https://www.procyclingstats.com/teams.php?s=worldtour&year={}".format(year)
 
     # fetch data
@@ -169,7 +270,8 @@ def scrape_teams_for_year(year=2020):
     # fill data frame
     for div in class_divs:
         div_df=parse_team_div(div)
-        div_df["team_class"]=class_name
+        div_df["team_class_name"]=class_name
+        div_df["team_class"]=1
         df=pd.concat([df,div_df],ignore_index=True)
 
     # second class
@@ -179,12 +281,28 @@ def scrape_teams_for_year(year=2020):
     # fill data frame
     for div in class_divs:
         div_df=parse_team_div(div)
-        div_df["team_class"]=class_name
+        div_df["team_class_name"]=class_name
+        div_df["team_class"]=2
         df=pd.concat([df,div_df],ignore_index=True)
 
     return df
 
 def parse_team_div(div) -> pd.DataFrame:
+    """
+    SUMMARY
+    parse details of teams in a given div
+    USED by scrape_teams_for_year
+
+    PARAMETERS
+    div (bs4.element.Tag): div to parse details from
+
+    OUTPUT
+    type: description
+    pandas.DataFrame: fetched data includes
+                        "team_name" (str) name of team
+                        "team_nationality_code" (str) PCS code for home nation of team
+                        "team_url" (str) full url to overview of team in given year
+    """
     anchors=div.find_all("a")
     spans=div.find_all("span")
 
@@ -205,8 +323,24 @@ def parse_team_div(div) -> pd.DataFrame:
 AVAILABLE RIDERS
 """
 
-# e.g. https://www.procyclingstats.com/team/ag2r-la-mondiale-2020
 def scrape_riders_from_team(url:str) -> pd.DataFrame:
+    """
+    SUMMARY
+    get details from riders in a team in a given year
+    E.G. https://www.procyclingstats.com/team/ag2r-la-mondiale-2020
+
+    PARAMETERS
+    url (str): url for a team's overview page (this is year specific)
+
+    OUTPUT
+    pandas.DataFrame: fetched data includes
+                        "rider_name" (str) name of ride
+                        "rider_nationality_code" (str) PCS code for rider's official nationality
+                        "rider_career_points" (int) number of PCS points won
+                        "rider_age" (int) age of rider (in given year of team)
+                        "rider_url" (str) full url to rider's overview page
+    """
+
     # fetch data
     session=HTMLSession()
     response=session.get(url)
@@ -228,6 +362,23 @@ def scrape_riders_from_team(url:str) -> pd.DataFrame:
     return df
 
 def parse_rider_list_item(item) -> pd.Series:
+    """
+    SUMMARY
+    parse details of rider in a given li
+    USED by scrape_riders_from_team
+
+    PARAMETERS
+    item (bs4.element.Tag): div to parse details from
+
+    OUTPUT
+    type: description
+    pandas.Series: fetched data includes
+                        "rider_name" (str) name of ride
+                        "rider_nationality_code" (str) PCS code for rider's official nationality
+                        "rider_career_points" (int) number of PCS points won
+                        "rider_age" (int) age of rider (in given year of team)
+                        "rider_url" (str) full url to rider's overview page
+    """
     series={}
 
     anchor=item.find("a")
@@ -243,9 +394,24 @@ def parse_rider_list_item(item) -> pd.Series:
 """
 RACE DETAILS
 """
-# scrape rider startlist for a race
-# https://www.procyclingstats.com/race/tour-de-france/2020/startlist
-def scrape_race_startlist(url) -> pd.DataFrame:
+def scrape_race_startlist(url:str) -> pd.DataFrame:
+    """
+    SUMMARY
+    scrape list of riders from a race's startlist
+    E.G. https://www.procyclingstats.com/race/tour-de-france/2020/startlist
+
+    PARAMETERS
+    url (str): url for a race's startlist page
+
+    OUTPUT
+    pandas.DataFrame: fetched data includes
+                        "bib_number" (int) rider's race number
+                        "rider_name" (str) name of rider
+                        "rider_nationality_code" (str) PCS code for rider's official nationality
+                        "team_name" (str) name of rider's team
+                        "rider_url" (url) full url to rider's overview page
+                        "team_url" (url) full url to team's overview page for given year
+    """
     # ensure url is for startlist
     if (url[-9:]!="startlist"):
         if (url[-1]!="/"): url+="/"
@@ -271,6 +437,22 @@ def scrape_race_startlist(url) -> pd.DataFrame:
     return df
 
 def parse_team_startlist_div(div) -> pd.DataFrame:
+    """
+    SUMMARY
+    parse details for all riders in a team, from the div for team in startlist
+
+    PARAMETERS
+    div (bs4.element.Tag): div to parse from
+
+    OUTPUT
+    pandas.DataFrame: fetched data includes
+                        "bib_number" (int) rider's race number
+                        "rider_name" (str) name of rider
+                        "rider_nationality_code" (str) PCS code for rider's official nationality
+                        "team_name" (str) name of rider's team
+                        "rider_url" (url) full url to rider's overview page
+                        "team_url" (url) full url to team's overview page for given year
+    """
     df=pd.DataFrame(columns=["bib_number","rider_name","rider_nationality_code","team_name","rider_url","team_url"])
 
     # extract team data
@@ -303,9 +485,26 @@ def parse_team_startlist_div(div) -> pd.DataFrame:
 
     return df
 
-# extract information about race
-# e.g. https://www.procyclingstats.com/race/tour-de-france/2020/stage-8
-def scrape_race_information(url) -> pd.Series:
+def scrape_race_information(url:str) -> pd.Series:
+    """
+    SUMMARY
+    extract information about race from it's overview page.
+    For one-day races or individual stages
+    E.G. https://www.procyclingstats.com/race/tour-de-france/2020/stage-8
+
+    PARAMETERS
+    url (str): url for a race's page (overview page if one-day race)
+
+    OUTPUT
+    pandas.Series: fetched data includes
+                    "date" (str) date race occured
+                    "race_cat" (str) race classification
+                    "parcours_rating" (int) PCS rating for pacour difficulty
+                    "start_location" (str) name of start town
+                    "end_location" (str) name of finish town
+                    "pcs_points_scale" (str) name of points scale being used
+                    "profile" (str) code for profile of race
+    """
     series={}
 
     # fetch data
@@ -318,11 +517,11 @@ def scrape_race_information(url) -> pd.Series:
     information_div=soup.find("div",{"class":"res-right"})
     text=information_div.text
 
-    series["date"]=re.search("Date: (.*)Race Category",text,re.IGNORECASE).group(1)
+    series["date"]=re.search("Date:\s+([0-9]+[a-z]{2} [a-z]+ [0-9]{4})",text,re.IGNORECASE).group(1)
     series["race_cat"]=re.search("Race category: (.*)Parcours",text,re.IGNORECASE).group(1)
     if (series["race_cat"].strip()==""): series["race_cat"]=None
 
-    series["parcours_rating"]=int(re.search("([0-9]+)\*?PCS",text,re.IGNORECASE).group(1))
+    series["parcours_rating"]=int(re.search("Parcours type:\s+([0-9]+)\*?",text,re.IGNORECASE).group(1))
     if (series["parcours_rating"]==0): series["parcours_rating"]=None
 
     # extract location data if it exists
@@ -335,7 +534,9 @@ def scrape_race_information(url) -> pd.Series:
 
     points_scale=re.search("scale: (.*) Start/",text,re.IGNORECASE)
     if points_scale is None: points_scale=re.search("scale: (.*) ",text,re.IGNORECASE)
-    series["pcs_points_scale"]=points_scale.group(1)
+
+    if points_scale is not None: series["pcs_points_scale"]=points_scale.group(1)
+    else: series["pcs_points_scale"]=None
 
     series["profile"]=information_div.find("span",{"class":"profile"})["class"][-1]
     if (series["profile"]=="p0"): series["profile"]=None # data missing
@@ -346,9 +547,21 @@ def scrape_race_information(url) -> pd.Series:
 STAGE RACING OVERVIEW
 """
 
-# scrape the list of top competitors & their urls from the overview page of a stagerace
-# https://www.procyclingstats.com/race/tour-de-france/2019/overview
 def scrape_stage_race_overview_top_competitors(url:str) -> pd.DataFrame:
+    """
+    SUMMARY
+    scrape details for top competitors from overview page of a given stage race
+    E.G. https://www.procyclingstats.com/race/tour-de-france/2019/overview
+
+    PARAMETERS
+    url (str): url for a race's overview page
+
+    OUTPUT
+    pandas.DataFrame: fetched data includes
+                        "rider_name" (str) name of rider
+                        "rider_url" (str) full url to rider's overview page
+                        "rider_nationality_code" (url) PCS code for rider's official nationality
+    """
     # fetch data
     session=HTMLSession()
     response=session.get(url)
@@ -375,9 +588,20 @@ def scrape_stage_race_overview_top_competitors(url:str) -> pd.DataFrame:
 
     return df
 
-# scrape the list of teams & their urls from the overview page of a stagerace
-# https://www.procyclingstats.com/race/tour-de-france/2019/overview
 def scrape_stage_race_overview_competing_teams(url:str) -> pd.DataFrame:
+    """
+    SUMMARY
+    get details of teams in a stage race from the race's overview page
+    E.G. https://www.procyclingstats.com/race/tour-de-france/2019/overview
+
+    PARAMETERS
+    url (str): url for a stage race's overview page
+
+    OUTPUT
+    pandas.DataFrame: fetched data includes
+                        "team_name" (str) name of team
+                        "team_url" (str) full url for team's overview page for year or race edition
+    """
     # fetch data
     session=HTMLSession()
     response=session.get(url)
@@ -404,9 +628,26 @@ def scrape_stage_race_overview_competing_teams(url:str) -> pd.DataFrame:
 
     return df
 
-# scrape details of each stage from stage race overview page
-#https://www.procyclingstats.com/race/tour-de-france/2019/overview
 def scrape_stage_race_overview_stages(url:str) -> pd.DataFrame:
+    """
+    SUMMARY
+    get details for stages in a stage race from it's overview page
+    E.G. https://www.procyclingstats.com/race/tour-de-france/2019/overview
+
+    PARAMETERS
+    url (str): url for a race's overview page
+
+    OUTPUT
+    type: description
+    pandas.DataFrame: fetched data includes
+                        "date" (str) date of stage (D/M)
+                        "stage_name" (str) name of stage (`stage #` or `REST DAY`)
+                        "start_location" (str) name of start town
+                        "end_location" (str) name of finish town
+                        "profile" (str) PCS description of profile
+                        "distance" (int) distance of stage in km
+                        "stage_url" (str) full url to stage's detail page
+    """
     # fetch data
     session=HTMLSession()
     response=session.get(url)
@@ -431,8 +672,26 @@ def scrape_stage_race_overview_stages(url:str) -> pd.DataFrame:
 
     return df
 
-# parse details from list of stages on stage race overview page
 def parse_stage_list_item(list_item) -> pd.Series:
+    """
+    SUMMARY
+    get details about a single stage
+    USED by Scraper.scrape_stage_race_overview_stages
+
+    PARAMETERS
+    list_item (bs4.element.Tag): stage item from list of stages
+
+    OUTPUT
+    type: description
+    pandas.Series: fetched data includes
+                        "date" (str) date of stage (D/M)
+                        "stage_name" (str) name of stage (`stage #` or `REST DAY`)
+                        "start_location" (str) name of start town
+                        "end_location" (str) name of finish town
+                        "profile" (str) PCS description of profile
+                        "distance" (int) distance of stage in km
+                        "stage_url" (str) full url to stage's detail page
+    """
     series={}
 
     # date of stage
@@ -461,8 +720,20 @@ def parse_stage_list_item(list_item) -> pd.Series:
 STAGE RACING STAGES
 """
 # return a list containing a data frame for each stage of a race
-# https://www.procyclingstats.com/race/tour-de-france/2020/gc/overview
 def scrape_stage_race_all_stage_results(url:str) -> [pd.DataFrame]:
+    """
+    SUMMARY
+    get finishing results for each stage in a stage race.
+    E.G. https://www.procyclingstats.com/race/tour-de-france/2020/overview
+
+    PARAMETERS
+    url (str): full url to stage race overview
+
+    OUTPUT
+    type: description
+    list(pandas.DataFrame): one dataframe for results for each stage. each dataframe includes
+
+    """
     stages=scrape_stage_race_overview_stages(url)
 
     results=[]
@@ -474,9 +745,30 @@ def scrape_stage_race_all_stage_results(url:str) -> [pd.DataFrame]:
 
     return results
 
-# scrape finish results from stage of a stage race
-# https://www.procyclingstats.com/race/tour-de-france/2020/stage-5
 def scrape_stage_race_stage_results(url:str) -> pd.DataFrame:
+    """
+    SUMMARY
+    get finish results for individual stage of a stage race
+    E.G. https://www.procyclingstats.com/race/tour-de-france/2020/stage-5
+
+    PARAMETERS
+    url (str): full url for a stage
+
+    OUTPUT
+    type: description
+    pandas.DataFrame: fetched data includes
+                        "stage_pos" (int) finish position of rider (`np.NaN` if rider didn't finish stage)
+                        "gc_pos" (int) rider's gc position after stage (`np.NaN` if rider didn't finish stage)
+                        "gc_time_diff_after" (datetime.timedelta) rider's time difference to gc leader after stage
+                        "bib_number" (int) rider's race number
+                        "rider_age" (int) rider's age on day of stage
+                        "team_name" (str) name of rider's team
+                        "rider_name" (str) name of rider
+                        "rider_nationality_code" (str) PCS code for rider's nationality
+                        "uci_points" (int) number of uci points won by rider in stage
+                        "points" (int) number of PCS points won by rider in stage
+                        "finish_time" (datetime.timedelta) time taken to complete stage (or time behind stage winner)
+    """
     # start session
     session=HTMLSession()
     response=session.get(url)
@@ -500,8 +792,29 @@ def scrape_stage_race_stage_results(url:str) -> pd.DataFrame:
 
     return df
 
-# parse a row from the table of results
 def parse_stage_race_stage_results_row(row) -> pd.Series:
+    """
+    SUMMARY
+    parse data from row of stage results table
+    USED by Scraper.scrape_stage_race_stage_results
+
+    PARAMETERS
+    row (bs4.element.Tag): row to extract details from
+
+    OUTPUT
+    pandas.Series: fetched data includes
+                        "stage_pos" (int) finish position of rider (`np.NaN` if rider didn't finish stage)
+                        "gc_pos" (int) rider's gc position after stage (`np.NaN` if rider didn't finish stage)
+                        "gc_time_diff_after" (datetime.timedelta) rider's time difference to gc leader after stage
+                        "bib_number" (int) rider's race number
+                        "rider_age" (int) rider's age on day of stage
+                        "team_name" (str) name of rider's team
+                        "rider_name" (str) name of rider
+                        "rider_nationality_code" (str) PCS code for rider's nationality
+                        "uci_points" (int) number of uci points won by rider in stage
+                        "points" (int) number of PCS points won by rider in stage
+                        "finish_time" (datetime.timedelta) time taken to complete stage (or time behind stage winner)
+    """
     series={}
     row_data=row.find_all("td")
 
@@ -511,7 +824,7 @@ def parse_stage_race_stage_results_row(row) -> pd.Series:
     gc_time_diff_after=row_data[2].text.replace("+","")
     series["stage_pos"]=int(stage_pos) if (stage_pos not in ["DNF","OTL","DNS"]) else np.NaN
     series["gc_pos"]=int(gc_pos) if (gc_pos!="") else np.NaN
-    series["gc_time_diff_after"]=parse_finish_times(gc_time_diff_after) if ("-" not in gc_time_diff_after) else np.NaN
+    series["gc_time_diff_after"]=parse_finish_time(gc_time_diff_after) if ("-" not in gc_time_diff_after) else np.NaN
     series["bib_number"]=int(row_data[3].text)
 
     # rider and team details
@@ -528,7 +841,7 @@ def parse_stage_race_stage_results_row(row) -> pd.Series:
 
     # results
     finish_time=row_data[9].find("span",{"class":"timeff"}).text
-    series["finish_time"]=parse_finish_times(finish_time) if (finish_time!="-") else np.NaN
+    series["finish_time"]=parse_finish_time(finish_time) if (finish_time!="-") else np.NaN
 
     return pd.Series(series)
 
@@ -537,8 +850,28 @@ ONE DAY RACING
 """
 
 # scrape finish results from one day race
-# e.g. https://www.procyclingstats.com/race/gp-samyn/2020/result
 def scrape_one_day_results(url:str) -> pd.DataFrame:
+    """
+    SUMMARY
+    get finish results for a one day race, from its results page
+    E.G. https://www.procyclingstats.com/race/gp-samyn/2020/result
+
+    PARAMETERS
+    url (str): full url for a one day race results page
+
+    OUTPUT
+    type: description
+    pandas.DataFrame: fetched data includes
+                        "finish_pos" (int) finish position of rider (`np.NaN` if rider didn't finish stage)
+                        "bib_number" (int) rider's race number
+                        "rider_age" (int) rider's age on day of stage
+                        "team_name" (str) name of rider's team
+                        "rider_name" (str) name of rider
+                        "rider_nationality_code" (str) PCS code for rider's nationality
+                        "uci_points" (int) number of uci points won by rider in stage
+                        "points" (int) number of PCS points won by rider in stage
+                        "finish_time" (datetime.timedelta) time taken to complete stage (or time behind stage winner)
+    """
     # start session
     session=HTMLSession()
     response=session.get(url)
@@ -562,8 +895,27 @@ def scrape_one_day_results(url:str) -> pd.DataFrame:
 
     return df
 
-# parse a row from the table of results
 def parse_one_day_results_row(row) -> pd.Series:
+    """
+    SUMMARY
+    parse data from row of one-day results table
+    USED by Scraper.scrape_stage_race_stage_results
+
+    PARAMETERS
+    row (bs4.element.Tag): row to extract details from
+
+    OUTPUT
+    pandas.Series: fetched data includes
+                        "finish_pos" (int) finish position of rider (`np.NaN` if rider didn't finish stage)
+                        "bib_number" (int) rider's race number
+                        "rider_age" (int) rider's age on day of stage
+                        "team_name" (str) name of rider's team
+                        "rider_name" (str) name of rider
+                        "rider_nationality_code" (str) PCS code for rider's nationality
+                        "uci_points" (int) number of uci points won by rider in stage
+                        "points" (int) number of PCS points won by rider in stage
+                        "finish_time" (datetime.timedelta) time taken to complete stage (or time behind stage winner)
+    """
     series={}
     row_data=row.find_all("td")
 
@@ -586,18 +938,37 @@ def parse_one_day_results_row(row) -> pd.Series:
 
     # results
     finish_time=row_data[7].find("span",{"class":"timeff"}).text
-    series["finish_time"]=parse_finish_times(finish_time) if (finish_time!="-") else np.NaN
+    series["finish_time"]=parse_finish_time(finish_time) if (finish_time!="-") else np.NaN
 
     return pd.Series(series)
-
 
 """
 RIDER PROFILES
 """
 
-# returns series specificing personal details by a rider
-# e.g. https://www.procyclingstats.com/rider/caleb-ewan/
 def get_rider_details(url:str) -> pd.Series:
+    """
+    SUMMARY
+    get personal details from a rider's overview page
+    E.G. https://www.procyclingstats.com/rider/caleb-ewan/
+
+    PARAMETERS
+    url (str): url for a riders's overview page
+
+    OUTPUT
+    pandas.Series: fetched data includes
+                    "name" (str) rider's name
+                    "dob" (str) rider's date of birth (e.g. 1st Jan 2020)
+                    "nationality" (str) country of rider's birth
+                    "birth_place" (str) town of rider's birth
+                    "weight" (int) rider's weight in kilograms
+                    "height" (int) rider's heigh in meters
+                    "points_classic" (int) rider's PCS points for One Day Races
+                    "points_gc" (int) rider's PCS points for General Classification
+                    "points_tt" (int) rider's PCS points for Time Trials
+                    "points_sprint" (int) rider's PCS points from Sprint Races
+                    "points_climber" (int) rider's PCS points from Climbing Races
+    """
     series=pd.Series() # series to fill in
 
     # start session
@@ -635,9 +1006,23 @@ def get_rider_details(url:str) -> pd.Series:
 
     return series
 
-# get dataframe containing teams a rider has ridden for
-# https://www.procyclingstats.com/rider/philippe-gilbert
 def get_rider_teams(url:str) -> pd.DataFrame:
+    """
+    SUMMARY
+    get details for teams rider has ridden for each year
+    E.G. https://www.procyclingstats.com/rider/caleb-ewan/
+
+    PARAMETERS
+    url (str): url for rider's overview page
+
+    OUTPUT
+    pandas.DataFrame: fetched data includes
+                        "year" (int) season team was ridden for
+                        "team_name" (str) official name of team
+                        "team_class" (str) PCS code for team's classification
+                        "team_url" (str) full url for team's overview for given season
+    """
+
     # start session
     session=HTMLSession()
     response=session.get(url)
@@ -669,9 +1054,21 @@ def get_rider_teams(url:str) -> pd.DataFrame:
     df=df.set_index("year")
     return df
 
-# returns list containing years in which results are held for a rider
-# e.g. https://www.procyclingstats.com/rider/caleb-ewan/
 def get_rider_years(url:str) -> [int]:
+    """
+    SUMMARY
+    get list of years in which PCS has results for rider, from the rider's overview page
+    useful for Scraper.scrape_rider_year_results
+    USED BY Scraper.scrape_rider_all_results
+    E.G. https://www.procyclingstats.com/rider/caleb-ewan/
+
+    PARAMETERS
+    url (str): url for a rider's overview page
+
+    OUTPUT
+    list(int): years in which rider competed
+    """
+
     # start session
     session=HTMLSession()
     response=session.get(url)
@@ -690,9 +1087,31 @@ def get_rider_years(url:str) -> [int]:
 
     return years
 
-# scrape results from riders overview page (for a specific year)
-# e.g. https://www.procyclingstats.com/rider/caleb-ewan/2020
 def scrape_rider_year_results(url:str) -> pd.DataFrame:
+    """
+    SUMMARY
+    get details for results of rider from their results page for a given year
+    E.G. https://www.procyclingstats.com/rider/caleb-ewan/2020
+
+    PARAMETERS
+    url (str): url for result's page of rider
+
+    OUTPUT
+    pandas.DataFrame: fetched data includes
+                        "date" (str) dates of race (`D.M` for one day, `D.M > D.M` for stage)
+                        "type" (str) type of race in ["Stage","One Day","Points Classification","Mountains Classification","General Classification","Youth Classification"]
+                        "result" (int) finish position of rider in race
+                        "gc_pos" (int) rider's gc position after stage (np.NaN for one day or overall classification)
+                        "race_country_code" (str) PCS code for race's host country
+                        "race_name" (str) name of race (name of stage race if individual stage)
+                        "race_class" (str) code for rider's class
+                        "stage_name" (str) name of stage (np.NaN for one day or overall classification)
+                        "distance" (int) length of stage in seconds
+                        "pcs_points" (int) number of PCS points won by rider in race
+                        "uci_points" (int) number of UCI points won by rider in race
+                        "url" (str) full url to race results page
+    """
+
     # start session
     session=HTMLSession()
     response=session.get(url)
@@ -716,9 +1135,32 @@ def scrape_rider_year_results(url:str) -> pd.DataFrame:
 
     return df
 
-# parse row of rider details to a series
-# return boolean stating whether to add details to dataframe (ie not just details of a stage race)
 def parse_rider_year_results_row(row,current={"race":"","race_class":"","flag":""}) -> (bool,pd.Series):
+    """
+    SUMMARY
+    parse details from row from results table of rider from their results page for a given year
+    USED BY Scraper.scrape_rider_year_results
+    E.G. https://www.procyclingstats.com/rider/caleb-ewan/2020
+
+    PARAMETERS
+    url (str): url for result's page of rider
+
+    OUTPUT
+    bool: whether to add details to dataframe (ie not just details of a stage race)
+    pandas.Series: fetched data includes
+                        "date" (str) dates of race (`D.M` for one day, `D.M > D.M` for stage)
+                        "type" (str) type of race in ["Stage","One Day","Points Classification","Mountains Classification","General Classification","Youth Classification"]
+                        "result" (int) finish position of rider in race
+                        "gc_pos" (int) rider's gc position after stage (np.NaN for one day or overall classification)
+                        "race_country_code" (str) PCS code for race's host country
+                        "race_name" (str) name of race (name of stage race if individual stage)
+                        "race_class" (str) code for rider's class
+                        "stage_name" (str) name of stage (np.NaN for one day or overall classification)
+                        "distance" (int) length of stage in seconds
+                        "pcs_points" (int) number of PCS points won by rider in race
+                        "uci_points" (int) number of UCI points won by rider in race
+                        "url" (str) full url to race results page
+    """
     series={}
     row_details=row.find_all("td")
 
@@ -757,6 +1199,31 @@ def parse_rider_year_results_row(row,current={"race":"","race_class":"","flag":"
 # get all results for a specific rider in a single data frame
 # e.g. https://www.procyclingstats.com/rider/caleb-ewan/
 def scrape_rider_all_results(url:str) -> pd.DataFrame:
+    """
+    SUMMARY
+    get all results for a rider, across their whole career
+    E.G. https://www.procyclingstats.com/rider/caleb-ewan/
+
+    PARAMETERS
+    url (str): url for a rider's overview page
+
+    OUTPUT
+    pandas.DataFrame: fetched data includes
+                        "date" (str) dates of race (`D.M` for one day, `D.M > D.M` for stage)
+                        "type" (str) type of race in ["Stage","One Day","Points Classification","Mountains Classification","General Classification","Youth Classification"]
+                        "result" (int) finish position of rider in race
+                        "gc_pos" (int) rider's gc position after stage (np.NaN for one day or overall classification)
+                        "race_country_code" (str) PCS code for race's host country
+                        "race_name" (str) name of race (name of stage race if individual stage)
+                        "race_class" (str) code for rider's class
+                        "stage_name" (str) name of stage (np.NaN for one day or overall classification)
+                        "distance" (int) length of stage in seconds
+                        "pcs_points" (int) number of PCS points won by rider in race
+                        "uci_points" (int) number of UCI points won by rider in race
+                        "url" (str) full url to race results page
+                        "year" (int) year of result
+    """
+
     # ensure formating of url
     if (url[-1]!="/"): url+="/"
 
@@ -766,6 +1233,7 @@ def scrape_rider_all_results(url:str) -> pd.DataFrame:
     # fetch data for all years
     all_results=pd.DataFrame()
     for year in years:
+        print("{}/{}".format(year,years[-1]),end="\r")
         new_url=url+str(year)
         year_results=scrape_rider_year_results(new_url)
         year_results["year"]=year # add column stating year of race
