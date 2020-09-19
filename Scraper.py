@@ -719,7 +719,7 @@ def parse_stage_list_item(list_item) -> pd.Series:
 """
 STAGE RACING STAGES
 """
-# return a list containing a data frame for each stage of a race
+
 def scrape_stage_race_all_stage_results(url:str) -> [pd.DataFrame]:
     """
     SUMMARY
@@ -822,7 +822,7 @@ def parse_stage_race_stage_results_row(row) -> pd.Series:
     stage_pos=row_data[0].text
     gc_pos=row_data[1].text
     gc_time_diff_after=row_data[2].text.replace("+","")
-    series["stage_pos"]=int(stage_pos) if (stage_pos not in ["DNF","OTL","DNS"]) else np.NaN
+    series["stage_pos"]=int(stage_pos) if (stage_pos not in ["DNF","OTL","DNS","DF"]) else np.NaN
     series["gc_pos"]=int(gc_pos) if (gc_pos!="") else np.NaN
     series["gc_time_diff_after"]=parse_finish_time(gc_time_diff_after) if ("-" not in gc_time_diff_after) else np.NaN
     series["bib_number"]=int(row_data[3].text)
@@ -849,7 +849,6 @@ def parse_stage_race_stage_results_row(row) -> pd.Series:
 ONE DAY RACING
 """
 
-# scrape finish results from one day race
 def scrape_one_day_results(url:str) -> pd.DataFrame:
     """
     SUMMARY
@@ -921,7 +920,7 @@ def parse_one_day_results_row(row) -> pd.Series:
 
     # race details
     finish_pos=row_data[0].text
-    series["finish_pos"]=int(finish_pos) if (finish_pos not in ["DNF","OTL","DNS"]) else np.NaN
+    series["finish_pos"]=int(finish_pos) if (finish_pos not in ["DF","DNF","OTL","DNS"]) else np.NaN
     series["bib_number"]=int(row_data[1].text)
 
     # rider and team details
